@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.opensearch.knn.common.KNNConstants.DIMENSION;
 import static org.opensearch.knn.DerivedSourceUtils.*;
 
 /**
@@ -546,4 +547,72 @@ public class DerivedSourceIT extends DerivedSourceTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    private List<Float> extractVector(Map<String, Object> source, String... path) {
+        Object current = source;
+        for (String key : path) {
+            if (current instanceof Map) {
+                current = ((Map<String, Object>) current).get(key);
+            } else {
+                return null;
+            }
+        }
+        if (current instanceof List) {
+            return (List<Float>) current;
+        }
+        return null;
+    }
+
+    @SneakyThrows
+    public void testDerivedSource_withMixedCaseObjectVectorField() {
+        String indexName = getIndexName("derived-source", "mixed-case", false);
+        int dimension = 3;
+
+        Settings settings = Settings.builder()
+            .put("number_of_shards", 1)
+            .put("number_of_replicas", 0)
+            .put("index.knn", true)
+            .put("index.knn.derived_source.enabled", true)
+            .build();
+
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject(KNNConstants.PROPERTIES)
+            .startObject("vectorSearch")
+            .startObject(KNNConstants.PROPERTIES)
+            .startObject("nameVector")
+            .field(KNNConstants.TYPE, KNNConstants.TYPE_KNN_VECTOR)
+            .field(DIMENSION, dimension)
+            .startObject("method")
+            .field("engine", "lucene")
+            .field("name", "hnsw")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        createKnnIndex(indexName, settings, mappingBuilder.toString());
+
+        XContentBuilder docBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("vectorSearch")
+            .array("nameVector", 1.0f, 2.0f, 3.0f)
+            .endObject()
+            .endObject();
+
+        addKnnDoc(indexName, "1", docBuilder.toString());
+        refreshIndex(indexName);
+
+        List<?> retrievedVector = extractVector(getKnnDoc(indexName, "1"), "vectorSearch", "nameVector");
+
+        assertNotNull("Mixed-case vector field should be reconstructed instead of returning the mask value", retrievedVector);
+        assertEquals(dimension, retrievedVector.size());
+        assertEquals(1.0f, ((Number) retrievedVector.get(0)).floatValue(), 0.0f);
+        assertEquals(2.0f, ((Number) retrievedVector.get(1)).floatValue(), 0.0f);
+        assertEquals(3.0f, ((Number) retrievedVector.get(2)).floatValue(), 0.0f);
+
+        deleteKNNIndex(indexName);
+    }
 }

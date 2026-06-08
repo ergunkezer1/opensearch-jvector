@@ -82,7 +82,7 @@ public class KNN10010DerivedSourceStoredFieldsFormat extends StoredFieldsFormat 
             return delegate;
         }
     }
-    
+
     private void addDerivedFieldInfo(List<DerivedFieldInfo> derivedFieldInfos, FieldInfos fieldInfos, String field, boolean isNested) {
         FieldInfo fieldInfo = getFieldInfo(fieldInfos, field);
         if (fieldInfo == null) {
@@ -116,7 +116,6 @@ public class KNN10010DerivedSourceStoredFieldsFormat extends StoredFieldsFormat 
         }
         return matchedFieldInfo;
     }
-
 
     @Override
     public StoredFieldsWriter fieldsWriter(Directory directory, SegmentInfo segmentInfo, IOContext ioContext) throws IOException {
